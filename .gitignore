@@ -1,0 +1,28 @@
+node_modules
+dist
+dist-ssr
+.vite
+*.local
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+npm-debug.log*
+yarn-error.log*
+
+# Ambientes com credenciais reais (inclui a chave da API de leitura do talao).
+# So o .env.example e que vai para o Git.
+.env
+.env.dev
+.env.test
+.env.prod
+.env.*.local
+
+# Firebase
+.firebase
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Netlify
+.netlify

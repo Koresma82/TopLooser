@@ -1,0 +1,123 @@
+rules_version = '2';
+
+// TopLooser - regras de seguranca Firestore
+//
+// Principios:
+//  - Apenas o admin (koresma@gmail.com) cria, edita ou apaga eventos.
+//  - Qualquer utilizador autenticado ve a lista de eventos e pode inscrever-se
+//    (se o evento permitir inscricoes), criando o seu proprio documento de participante.
+//  - Registos de pesagem, galeria e documentos sao visiveis a quem esta inscrito no evento.
+//  - Cada participante so escreve nos seus proprios registos. O admin pode moderar tudo.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function emailAdmin() {
+      return 'koresma@gmail.com';
+    }
+
+    function isAdmin() {
+      return autenticado()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() == emailAdmin();
+    }
+
+    function eventoDoc(eventoId) {
+      return get(/databases/$(database)/documents/eventos/$(eventoId)).data;
+    }
+
+    function participa(eventoId) {
+      return autenticado()
+        && exists(/databases/$(database)/documents/eventos/$(eventoId)/participantes/$(request.auth.uid));
+    }
+
+    function souDono(recurso) {
+      return autenticado() && recurso.data.uid == request.auth.uid;
+    }
+
+    function vouSerDono() {
+      return autenticado() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // ---------------------------------------------------------------
+    // Perfis de utilizador
+    // ---------------------------------------------------------------
+    match /utilizadores/{uid} {
+      allow read: if autenticado();
+      allow create, update: if autenticado() && request.auth.uid == uid;
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Eventos
+    // ---------------------------------------------------------------
+    match /eventos/{eventoId} {
+      // Todos os autenticados veem os eventos para se poderem inscrever.
+      allow read: if autenticado();
+      allow create, update, delete: if isAdmin();
+
+      // -------------------------------------------------------------
+      // Participantes (o id do documento e o uid do utilizador)
+      // -------------------------------------------------------------
+      match /participantes/{uid} {
+        allow read: if autenticado();
+
+        // Inscricao propria, desde que o evento aceite inscricoes.
+        allow create: if autenticado()
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid
+          && eventoDoc(eventoId).estado != 'encerrado'
+          && eventoDoc(eventoId).inscricoesAbertas == true;
+
+        // Cada um edita a sua ficha (cor, altura, alcunha). O admin pode moderar.
+        allow update: if (autenticado() && request.auth.uid == uid) || isAdmin();
+        allow delete: if (autenticado() && request.auth.uid == uid) || isAdmin();
+      }
+
+      // -------------------------------------------------------------
+      // Registos de pesagem
+      // -------------------------------------------------------------
+      match /registos/{registoId} {
+        allow read: if participa(eventoId) || isAdmin();
+        allow create: if participa(eventoId) && vouSerDono();
+        allow update: if (participa(eventoId) && souDono(resource) && vouSerDono()) || isAdmin();
+        allow delete: if (participa(eventoId) && souDono(resource)) || isAdmin();
+      }
+
+      // -------------------------------------------------------------
+      // Galeria de fotos do evento
+      // -------------------------------------------------------------
+      match /galeria/{fotoId} {
+        allow read: if participa(eventoId) || isAdmin();
+        allow create: if participa(eventoId) && vouSerDono();
+        allow update: if (participa(eventoId) && souDono(resource) && vouSerDono()) || isAdmin();
+        allow delete: if (participa(eventoId) && souDono(resource)) || isAdmin();
+      }
+
+      // -------------------------------------------------------------
+      // Documentos do evento (contrato assinado, regulamento, etc.)
+      // -------------------------------------------------------------
+      match /documentos/{docId} {
+        allow read: if participa(eventoId) || isAdmin();
+        allow create: if participa(eventoId) && vouSerDono();
+        allow update: if (participa(eventoId) && souDono(resource) && vouSerDono()) || isAdmin();
+        allow delete: if (participa(eventoId) && souDono(resource)) || isAdmin();
+      }
+    }
+
+    // Necessario para a query de grupo de colecoes que descobre
+    // em que eventos o utilizador ja esta inscrito.
+    match /{caminho=**}/participantes/{uid} {
+      allow read: if autenticado();
+    }
+
+    // Tudo o resto fica fechado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,63 @@
+rules_version = '2';
+
+// TopLooser - regras de seguranca do Cloud Storage
+//
+// Nota importante: as regras do Storage nao conseguem consultar o Firestore,
+// por isso nao e possivel validar aqui se o utilizador esta inscrito no evento.
+// A leitura fica limitada a utilizadores autenticados e a escrita fica limitada
+// a pasta do proprio utilizador (o uid faz parte do caminho).
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return autenticado()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() == 'koresma@gmail.com';
+    }
+
+    function dono(uid) {
+      return autenticado() && request.auth.uid == uid;
+    }
+
+    function imagemValida() {
+      return request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    function ficheiroValido() {
+      return request.resource.size < 15 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+            || request.resource.contentType == 'application/pdf');
+    }
+
+    // Fotos dos talões / pesagens
+    match /eventos/{eventoId}/registos/{uid}/{ficheiro} {
+      allow read: if autenticado();
+      allow write: if dono(uid) && imagemValida();
+      allow delete: if dono(uid) || isAdmin();
+    }
+
+    // Galeria partilhada do evento
+    match /eventos/{eventoId}/galeria/{uid}/{ficheiro} {
+      allow read: if autenticado();
+      allow write: if dono(uid) && imagemValida();
+      allow delete: if dono(uid) || isAdmin();
+    }
+
+    // Documentos: contrato assinado, regulamento (imagem ou PDF)
+    match /eventos/{eventoId}/documentos/{uid}/{ficheiro} {
+      allow read: if autenticado();
+      allow write: if dono(uid) && ficheiroValido();
+      allow delete: if dono(uid) || isAdmin();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
