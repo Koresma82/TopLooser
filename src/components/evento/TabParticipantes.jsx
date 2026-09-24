@@ -9,7 +9,7 @@ import { dataCurta } from '../../lib/formato'
 import { sairDoEvento } from '../../lib/servicos'
 
 export default function TabParticipantes({ evento, participantes, registos, euParticipante }) {
-  const { uid, isAdmin } = useAuth()
+  const { uid, isAdmin, utilizador } = useAuth()
   const toast = useToast()
   const [modalFicha, setModalFicha] = useState(false)
   const [paraRemover, setParaRemover] = useState(null)
@@ -18,7 +18,7 @@ export default function TabParticipantes({ evento, participantes, registos, euPa
     const p = paraRemover
     setParaRemover(null)
     try {
-      await sairDoEvento(evento.id, p.uid)
+      await sairDoEvento(evento.id, p.uid, utilizador, evento.nome)
       toast.sucesso(p.uid === uid ? 'Saíste do desafio.' : 'Participante removido.')
     } catch (e) {
       console.error(e)
@@ -101,6 +101,7 @@ export default function TabParticipantes({ evento, participantes, registos, euPa
         aberto={modalFicha}
         aoFechar={() => setModalFicha(false)}
         eventoId={evento.id}
+        nomeEvento={evento.nome}
         participantes={participantes}
         euParticipante={euParticipante}
       />

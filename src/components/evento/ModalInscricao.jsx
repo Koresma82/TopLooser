@@ -7,7 +7,7 @@ import { atualizarParticipante, inscrever } from '../../lib/servicos'
 import { calcularImc, classeImc } from '../../lib/calculos'
 import { numero } from '../../lib/formato'
 
-export default function ModalInscricao({ aberto, aoFechar, eventoId, participantes, euParticipante }) {
+export default function ModalInscricao({ aberto, aoFechar, eventoId, nomeEvento, participantes, euParticipante }) {
   const { utilizador, nome } = useAuth()
   const toast = useToast()
 
@@ -54,7 +54,7 @@ export default function ModalInscricao({ aberto, aoFechar, eventoId, participant
         })
         toast.sucesso('Ficha atualizada.')
       } else {
-        await inscrever(eventoId, utilizador, { cor, alturaCm: alturaNum, alcunha })
+        await inscrever(eventoId, utilizador, { cor, alturaCm: alturaNum, alcunha, nomeEvento })
         toast.sucesso('Estás dentro. Boa sorte.')
       }
       aoFechar()

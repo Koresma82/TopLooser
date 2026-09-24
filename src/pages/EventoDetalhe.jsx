@@ -40,7 +40,7 @@ const SEPARADORES_ESPECTADOR = [
 
 export default function EventoDetalhe() {
   const { eventoId } = useParams()
-  const { isAdmin } = useAuth()
+  const { isAdmin, utilizador } = useAuth()
   const toast = useToast()
   const telemovel = useTelemovel()
   const {
@@ -87,7 +87,12 @@ export default function EventoDetalhe() {
   async function alternarInscricoes() {
     setAAlternar(true)
     try {
-      await atualizarEvento(evento.id, { inscricoesAbertas: evento.inscricoesAbertas === false })
+      await atualizarEvento(
+        evento.id,
+        { inscricoesAbertas: evento.inscricoesAbertas === false },
+        utilizador,
+        evento.nome
+      )
       toast.sucesso(
         evento.inscricoesAbertas === false ? 'Inscrições abertas.' : 'Inscrições fechadas.'
       )
@@ -181,7 +186,7 @@ export default function EventoDetalhe() {
         </div>
       )}
 
-      <nav className="separadores">
+      <nav className="separadores separadores--evento">
         {separadores.map((s) => (
           <button
             key={s.id}
@@ -268,6 +273,7 @@ export default function EventoDetalhe() {
         aberto={modalInscricao}
         aoFechar={() => setModalInscricao(false)}
         eventoId={evento.id}
+        nomeEvento={evento.nome}
         participantes={participantes}
         euParticipante={euParticipante}
       />

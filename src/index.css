@@ -1003,8 +1003,11 @@ table.tabela tbody tr:hover td { background: rgba(255, 255, 255, .02); }
   .secao { margin-bottom: 22px; }
   .secao__topo { gap: 10px; }
 
-  /* A barra de baixo substitui os separadores do topo */
-  .separadores { display: none; }
+  /* A barra de baixo substitui os separadores do evento — e só esses. Noutros
+     ecrãs (a administração, por exemplo) eles continuam a ser a navegação. */
+  .separadores--evento { display: none; }
+  .separadores { gap: 2px; }
+  .separador { padding: 10px 13px; font-size: .92rem; }
   .nav-inferior { display: flex; }
   .espaco-nav { display: block; }
   .acao-flutuante { display: inline-flex; }
@@ -1153,3 +1156,28 @@ table.tabela tbody tr:hover td { background: rgba(255, 255, 255, .02); }
 .traco { width: 25px; height: 25px; opacity: .75; transition: opacity .15s ease, transform .15s ease; }
 .nav-inferior__item--ativo .traco { opacity: 1; transform: translateY(-1px); }
 .folha__item .traco { width: 24px; height: 24px; flex-shrink: 0; margin: 3px; }
+
+/* --------------------------------------------------------------------- */
+/* Registo de auditoria                                                   */
+/* --------------------------------------------------------------------- */
+
+.linha-auditoria {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 14px;
+  border-radius: var(--raio-p);
+  border: 1px solid var(--borda);
+  background: var(--cartao);
+  font-size: .89rem;
+}
+
+.linha-auditoria__ponto { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.linha-auditoria__corpo { flex: 1; min-width: 0; }
+.linha-auditoria__meta { font-size: .76rem; color: var(--texto-fraco); margin-top: 2px; }
+.linha-auditoria__quando { font-size: .78rem; color: var(--texto-fraco); white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .linha-auditoria { flex-wrap: wrap; gap: 9px; }
+  .linha-auditoria__quando { flex-basis: 100%; text-align: right; }
+}

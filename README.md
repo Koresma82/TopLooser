@@ -54,6 +54,8 @@ React + Vite + Firebase (Auth, Firestore, Storage) + Netlify. Interface em portu
 | Remover participantes | não | não | sim |
 | Criar / editar / apagar eventos | não | não | sim |
 | Apagar registos e fotos de outros | não | não | sim |
+| Ver estatísticas de utilização | não | não | sim |
+| Ver o registo de auditoria | não | não | sim |
 
 **Espectador** é qualquer pessoa autenticada que não esteja inscrita no evento: vê os
 números e os gráficos, não escreve nada e não vê as fotos nem os documentos.
@@ -246,6 +248,14 @@ eventos/{eventoId}
   participantes/{uid}
     uid, nome, email, fotoURL, cor, alturaCm, entrouEm
 
+  utilizadores/{uid}            <- cada um vê o seu; o admin vê todos
+    uid, nome, email, fotoURL,
+    entradas, primeiraEntrada, ultimaEntrada, ultimaVisita,
+    ultimaAutenticacao (para não contar recarregamentos como entradas)
+
+  auditoria/{id}                <- só o admin lê; ninguém altera nem apaga
+    uid, email, nome, acao, detalhe, dia, quando, eventoId
+
   registos/{registoId}          <- leitura aberta a qualquer autenticado
     uid, data, valores{peso, imc, massaGorda, …}, alturaCm,
     origem ('manual' | 'talao' | 'talao-ia'), temAnexo
@@ -332,6 +342,19 @@ da foto nunca chega ao browser dele.
 escuta do Firestore e não uma leitura pontual: quando alguém regista uma pesagem, os
 gráficos, a classificação e o líder do dia mudam sozinhos nos ecrãs de toda a gente,
 sem ninguém ter de recarregar a página.
+
+**Como se contam as entradas.** O `onAuthStateChanged` dispara em cada carregamento
+da página, mesmo com a sessão já aberta — contar aí inflava o número a cada F5. O
+Firebase diz quando foi a última autenticação de verdade
+(`metadata.lastSignInTime`), e só se conta quando esse instante muda. Uma entrada é
+uma autenticação nova, não uma visita.
+
+**O que o registo de auditoria é, e o que não é.** É escrito pelo browser de cada
+pessoa. As regras impedem escrever em nome de outro, alterar ou apagar — é só de
+acrescentar — mas nada obriga o browser a escrever. Serve para acompanhar a
+atividade do grupo, não para provar nada contra quem queira enganar o sistema. Para
+isso seria preciso escrever do lado do servidor, com uma conta de serviço e uma
+função que reagisse aos eventos de autenticação.
 
 **Sair do evento** apaga os registos, anexos, fotos e documentos dessa pessoa nesse
 evento.

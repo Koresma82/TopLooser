@@ -11,6 +11,7 @@ import {
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '../firebase/config'
 import { calcularImc } from './calculos'
+import { registar } from './auditoria'
 
 // ---------------------------------------------------------------------------
 // Ficheiros
@@ -62,25 +63,41 @@ export async function criarEvento(dados, utilizador) {
     atualizadoEm: serverTimestamp()
   }
   const criado = await addDoc(collection(db, 'eventos'), registo)
+  await registar(utilizador, 'evento-criado', registo.nome, { eventoId: criado.id })
   return criado.id
 }
 
-export async function atualizarEvento(eventoId, dados) {
+export async function atualizarEvento(eventoId, dados, utilizador, nomeEvento = '') {
   await updateDoc(doc(db, 'eventos', eventoId), {
     ...dados,
     atualizadoEm: serverTimestamp()
   })
+
+  // Abrir e fechar inscrições fica registado à parte: é a alteração que mais
+  // interessa saber quem fez e quando.
+  if (utilizador) {
+    const acao =
+      dados.inscricoesAbertas === true
+        ? 'inscricoes-abertas'
+        : dados.inscricoesAbertas === false
+          ? 'inscricoes-fechadas'
+          : 'evento-editado'
+    await registar(utilizador, acao, nomeEvento, { eventoId })
+  }
 }
 
-export async function encerrarEvento(eventoId, encerrar = true) {
+export async function encerrarEvento(eventoId, encerrar = true, utilizador, nomeEvento = '') {
   await updateDoc(doc(db, 'eventos', eventoId), {
     estado: encerrar ? 'encerrado' : 'aberto',
     atualizadoEm: serverTimestamp()
   })
+  await registar(utilizador, encerrar ? 'evento-encerrado' : 'evento-reaberto', nomeEvento, {
+    eventoId
+  })
 }
 
 // Apaga o evento e tudo o que tem dentro (subcoleções e ficheiros).
-export async function apagarEvento(eventoId) {
+export async function apagarEvento(eventoId, utilizador, nomeEvento = '') {
   const subcolecoes = ['registos', 'anexos', 'galeria', 'documentos', 'participantes']
   for (const nome of subcolecoes) {
     const snap = await getDocs(collection(db, 'eventos', eventoId, nome))
@@ -91,6 +108,7 @@ export async function apagarEvento(eventoId) {
     }
   }
   await deleteDoc(doc(db, 'eventos', eventoId))
+  await registar(utilizador, 'evento-apagado', nomeEvento, { eventoId })
 }
 
 // ---------------------------------------------------------------------------
@@ -108,13 +126,14 @@ export async function inscrever(eventoId, utilizador, dados) {
     alturaCm: Number(dados.alturaCm) || null,
     entrouEm: serverTimestamp()
   })
+  await registar(utilizador, 'inscricao', dados.nomeEvento || '', { eventoId })
 }
 
 export async function atualizarParticipante(eventoId, uid, dados) {
   await updateDoc(doc(db, 'eventos', eventoId, 'participantes', uid), dados)
 }
 
-export async function sairDoEvento(eventoId, uid) {
+export async function sairDoEvento(eventoId, uid, utilizador, nomeEvento = '') {
   // Remove primeiro os registos, anexos e ficheiros do próprio.
   for (const nome of ['registos', 'anexos', 'galeria', 'documentos']) {
     const snap = await getDocs(collection(db, 'eventos', eventoId, nome))
@@ -126,6 +145,15 @@ export async function sairDoEvento(eventoId, uid) {
     }
   }
   await deleteDoc(doc(db, 'eventos', eventoId, 'participantes', uid))
+  if (utilizador) {
+    const proprio = utilizador.uid === uid
+    await registar(
+      utilizador,
+      proprio ? 'saida' : 'participante-removido',
+      proprio ? nomeEvento : `${nomeEvento} — ${uid}`,
+      { eventoId, alvo: uid }
+    )
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -184,9 +212,15 @@ export async function criarRegisto(eventoId, utilizador, participante, dados, fi
       criadoEm: serverTimestamp()
     })
   }
+
+  await registar(utilizador, 'pesagem-criada', dados.data, {
+    eventoId,
+    comTalao: Boolean(anexoFicheiro),
+    comIA: Boolean(dados.leituraIA)
+  })
 }
 
-export async function atualizarRegisto(eventoId, registoId, participante, dados, ficheiro) {
+export async function atualizarRegisto(eventoId, registoId, participante, dados, ficheiro, utilizador) {
   let anexoFicheiro = null
   if (ficheiro) {
     const nome = `${Date.now()}_${nomeSeguro(ficheiro.name)}`
@@ -222,9 +256,11 @@ export async function atualizarRegisto(eventoId, registoId, participante, dados,
     parcial.ficheiroPath = anexoFicheiro.caminho
   }
   await setDoc(referencia, parcial, { merge: true })
+
+  await registar(utilizador, 'pesagem-editada', dados.data, { eventoId })
 }
 
-export async function apagarRegisto(eventoId, registo) {
+export async function apagarRegisto(eventoId, registo, utilizador) {
   if (registo.ficheiroPath) await apagarFicheiro(registo.ficheiroPath)
   await deleteDoc(doc(db, 'eventos', eventoId, 'registos', registo.id))
   try {
@@ -233,6 +269,7 @@ export async function apagarRegisto(eventoId, registo) {
     // O registo pode nao ter anexo nenhum; nao vale a pena interromper.
     console.error(e)
   }
+  await registar(utilizador, 'pesagem-apagada', registo.data, { eventoId, alvo: registo.uid })
 }
 
 // Converte os campos do formulário em números e calcula o IMC quando dá.
@@ -265,6 +302,7 @@ export async function adicionarFoto(eventoId, utilizador, ficheiro, legenda = ''
     ficheiroPath: anexo.caminho,
     criadoEm: serverTimestamp()
   })
+  await registar(utilizador, 'foto-publicada', legenda, { eventoId })
 }
 
 export async function apagarFoto(eventoId, foto) {
@@ -292,6 +330,7 @@ export async function adicionarDocumento(eventoId, utilizador, ficheiro, titulo 
     ficheiroPath: anexo.caminho,
     criadoEm: serverTimestamp()
   })
+  await registar(utilizador, 'documento-carregado', titulo || ficheiro.name, { eventoId })
 }
 
 export async function apagarDocumento(eventoId, documento) {

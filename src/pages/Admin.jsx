@@ -8,6 +8,15 @@ import { CATEGORIAS, CATEGORIAS_PREDEFINIDAS } from '../lib/categorias'
 import { estadoEvento, ROTULO_ESTADO } from '../lib/calculos'
 import { dataCurta, hojeISO } from '../lib/formato'
 import { apagarEvento, atualizarEvento, criarEvento, encerrarEvento } from '../lib/servicos'
+import { useEstatisticasAdmin } from '../hooks/useAdmin'
+import PainelEstatisticas from '../components/admin/PainelEstatisticas'
+import PainelAuditoria from '../components/admin/PainelAuditoria'
+
+const SEPARADORES_ADMIN = [
+  { id: 'eventos', nome: 'Eventos' },
+  { id: 'estatisticas', nome: 'Estatísticas' },
+  { id: 'auditoria', nome: 'Auditoria' }
+]
 
 const FORM_VAZIO = {
   nome: '',
@@ -25,6 +34,8 @@ export default function Admin() {
   const { eventos, aCarregar } = useEventos()
   const toast = useToast()
 
+  const [separador, setSeparador] = useState('eventos')
+  const estatisticas = useEstatisticasAdmin()
   const [form, setForm] = useState(FORM_VAZIO)
   const [aEditar, setAEditar] = useState(null)
   const [modalAberto, setModalAberto] = useState(false)
@@ -92,7 +103,7 @@ export default function Admin() {
           modoRanking: form.modoRanking,
           inscricoesAbertas: form.inscricoesAbertas,
           premio: form.premio.trim()
-        })
+        }, utilizador, form.nome.trim())
         toast.sucesso('Evento atualizado.')
       } else {
         await criarEvento(form, utilizador)
@@ -109,7 +120,7 @@ export default function Admin() {
 
   async function alternarEncerramento(evento) {
     try {
-      await encerrarEvento(evento.id, evento.estado !== 'encerrado')
+      await encerrarEvento(evento.id, evento.estado !== 'encerrado', utilizador, evento.nome)
       toast.sucesso(evento.estado === 'encerrado' ? 'Evento reaberto.' : 'Evento encerrado.')
     } catch {
       toast.erro('Não foi possível alterar o estado do evento.')
@@ -120,7 +131,7 @@ export default function Admin() {
     const evento = paraApagar
     setParaApagar(null)
     try {
-      await apagarEvento(evento.id)
+      await apagarEvento(evento.id, utilizador, evento.nome)
       toast.sucesso('Evento apagado.')
     } catch (e) {
       console.error(e)
@@ -134,18 +145,35 @@ export default function Admin() {
     <>
       <div className="secao__topo">
         <div>
-          <h1>Gerir eventos</h1>
+          <h1>Administração</h1>
           <p className="subtitulo">
-            Só tu podes criar e configurar desafios. Todos os outros entram por convite ou pela
-            lista de eventos.
+            Só tu vês este ecrã: criar e configurar desafios, ver quem usa a aplicação e o
+            registo do que se passou.
           </p>
         </div>
-        <button className="btn btn--principal" onClick={abrirNovo}>
-          Criar evento
-        </button>
+        {separador === 'eventos' && (
+          <button className="btn btn--principal" onClick={abrirNovo}>
+            Criar evento
+          </button>
+        )}
       </div>
 
-      {!eventos.length ? (
+      <nav className="separadores">
+        {SEPARADORES_ADMIN.map((s) => (
+          <button
+            key={s.id}
+            className={`separador ${separador === s.id ? 'separador--ativo' : ''}`}
+            onClick={() => setSeparador(s.id)}
+          >
+            {s.nome}
+          </button>
+        ))}
+      </nav>
+
+      {separador === 'estatisticas' && <PainelEstatisticas dados={estatisticas} />}
+      {separador === 'auditoria' && <PainelAuditoria dados={estatisticas} />}
+
+      {separador === 'eventos' && (!eventos.length ? (
         <Vazio titulo="Ainda não criaste nenhum evento">
           Começa por criar o desafio e depois partilha o link com o pessoal.
         </Vazio>
@@ -204,7 +232,7 @@ export default function Admin() {
             </table>
           </div>
         </div>
-      )}
+      ))}
 
       <Modal
         titulo={aEditar ? 'Editar evento' : 'Criar evento'}

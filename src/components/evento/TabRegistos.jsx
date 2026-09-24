@@ -68,7 +68,7 @@ function CartaoPesagem({ registo, participante, cats, meu, isAdmin, aoEditar, ao
 }
 
 export default function TabRegistos({ evento, participantes, registos, euParticipante, souParticipante }) {
-  const { uid, isAdmin } = useAuth()
+  const { uid, isAdmin, utilizador } = useAuth()
   const telemovel = useTelemovel()
   const toast = useToast()
 
@@ -98,7 +98,7 @@ export default function TabRegistos({ evento, participantes, registos, euPartici
     const registo = paraApagar
     setParaApagar(null)
     try {
-      await apagarRegisto(evento.id, registo)
+      await apagarRegisto(evento.id, registo, utilizador)
       toast.sucesso('Registo apagado.')
     } catch (e) {
       console.error(e)

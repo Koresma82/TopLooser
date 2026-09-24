@@ -6,8 +6,9 @@ import {
   getRedirectResult,
   signOut as firebaseSignOut
 } from 'firebase/auth'
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { doc, getDoc, increment, serverTimestamp, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider, EMAIL_ADMIN, configuracaoEmFalta } from '../firebase/config'
+import { registar } from '../lib/auditoria'
 
 const AuthContext = createContext(null)
 
@@ -17,20 +18,43 @@ export function useAuth() {
   return ctx
 }
 
-// Guarda/atualiza o perfil do utilizador para podermos mostrar nome e foto
-// aos outros participantes sem depender do token de autenticação.
+// Guarda/atualiza o perfil e conta as entradas.
+//
+// A contagem NÃO pode ser feita a cada vez que isto corre: o onAuthStateChanged
+// dispara em todos os carregamentos da página, mesmo quando a sessão já estava
+// aberta, e o número inflava com F5. O Firebase diz-nos quando foi a última
+// autenticação de verdade (metadata.lastSignInTime); só se conta quando esse
+// instante for diferente do que ficou guardado da vez anterior.
 async function guardarPerfil(utilizador) {
   const ref = doc(db, 'utilizadores', utilizador.uid)
   const existente = await getDoc(ref)
+  const anterior = existente.exists() ? existente.data() : null
+
+  const autenticadoEm = utilizador.metadata?.lastSignInTime || ''
+  const entradaNova = Boolean(autenticadoEm) && anterior?.ultimaAutenticacao !== autenticadoEm
+
   const dados = {
     uid: utilizador.uid,
     nome: utilizador.displayName || utilizador.email?.split('@')[0] || 'Sem nome',
-    email: utilizador.email || '',
+    email: (utilizador.email || '').toLowerCase(),
     fotoURL: utilizador.photoURL || '',
-    atualizadoEm: serverTimestamp()
+    atualizadoEm: serverTimestamp(),
+    ultimaVisita: serverTimestamp()
   }
-  if (!existente.exists()) dados.criadoEm = serverTimestamp()
+
+  if (!existente.exists()) {
+    dados.criadoEm = serverTimestamp()
+    dados.primeiraEntrada = serverTimestamp()
+  }
+
+  if (entradaNova) {
+    dados.ultimaAutenticacao = autenticadoEm
+    dados.ultimaEntrada = serverTimestamp()
+    dados.entradas = increment(1)
+  }
+
   await setDoc(ref, dados, { merge: true })
+  return entradaNova
 }
 
 // No iPhone e numa app instalada no ecrã inicial, a janela de popup é quase
@@ -73,7 +97,8 @@ export function AuthProvider({ children }) {
         setUtilizador(u)
         if (u) {
           try {
-            await guardarPerfil(u)
+            const entradaNova = await guardarPerfil(u)
+            if (entradaNova) await registar(u, 'entrada')
           } catch (e) {
             console.error('Não foi possível guardar o perfil:', e)
           }

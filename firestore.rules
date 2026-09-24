@@ -62,10 +62,36 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------
     // Perfis de utilizador
+    //
+    // Fechado: cada um ve o seu, o admin ve todos. Os nomes e as fotos que
+    // aparecem nos eventos vem das fichas de participante, nao daqui -- e
+    // daqui passou a constar tambem a contagem de entradas e a ultima visita,
+    // que nao ha razao para toda a gente ver.
     // ---------------------------------------------------------------
     match /utilizadores/{uid} {
-      allow read: if autenticado();
+      allow read: if isAdmin() || (autenticado() && request.auth.uid == uid);
       allow create, update: if autenticado() && request.auth.uid == uid;
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Auditoria
+    //
+    // So o admin le. Cada um escreve apenas entradas em seu nome, e ninguem
+    // altera nem apaga -- so de acrescentar.
+    //
+    // Nota honesta sobre o alcance disto: quem escreve e o browser de cada
+    // pessoa. As regras impedem falsificar em nome de outro, alterar ou
+    // apagar, mas nao obrigam ninguem a escrever. Serve para acompanhar a
+    // atividade do grupo, nao para provar nada contra quem queira enganar o
+    // sistema. Para isso seria preciso escrever do lado do servidor.
+    // ---------------------------------------------------------------
+    match /auditoria/{registoId} {
+      allow read: if isAdmin();
+      allow create: if autenticado()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.acao is string;
+      allow update: if false;
       allow delete: if isAdmin();
     }
 

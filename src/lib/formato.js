@@ -96,3 +96,35 @@ export function tamanhoFicheiro(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+// Data e hora de um instante (para a auditoria): '24/09/2026 às 20:15'
+export function dataHora(data) {
+  if (!data) return '—'
+  const d = data instanceof Date ? data : new Date(data)
+  if (Number.isNaN(d.getTime())) return '—'
+  const dia = String(d.getDate()).padStart(2, '0')
+  const mes = String(d.getMonth() + 1).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  return `${dia}/${mes}/${d.getFullYear()} às ${h}:${m}`
+}
+
+// 'há 3 dias', 'há 2 h', 'agora mesmo' — para listas onde a data exata não importa
+export function haQuantoTempo(data) {
+  if (!data) return '—'
+  const d = data instanceof Date ? data : new Date(data)
+  if (Number.isNaN(d.getTime())) return '—'
+  const segundos = Math.floor((Date.now() - d.getTime()) / 1000)
+  if (segundos < 60) return 'agora mesmo'
+  const minutos = Math.floor(segundos / 60)
+  if (minutos < 60) return `há ${minutos} min`
+  const horas = Math.floor(minutos / 60)
+  if (horas < 24) return `há ${horas} h`
+  const dias = Math.floor(horas / 24)
+  if (dias === 1) return 'ontem'
+  if (dias < 30) return `há ${dias} dias`
+  const meses = Math.floor(dias / 30)
+  if (meses < 12) return `há ${meses} ${meses === 1 ? 'mês' : 'meses'}`
+  const anos = Math.floor(meses / 12)
+  return `há ${anos} ${anos === 1 ? 'ano' : 'anos'}`
+}

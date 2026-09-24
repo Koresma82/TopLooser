@@ -205,7 +205,8 @@ export default function ModalRegisto({ aberto, aoFechar, evento, participante, r
           registo.id,
           participante,
           { data, valores, notas, ...extra },
-          ficheiro
+          ficheiro,
+          utilizador
         )
         toast.sucesso('Registo atualizado.')
       } else {
