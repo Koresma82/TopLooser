@@ -260,6 +260,38 @@ input[type="date"] { color-scheme: dark; }
 .chip-cor--ocupado:hover { transform: none; }
 
 /* --------------------------------------------------------------------- */
+/* Barra de administração                                                 */
+/* --------------------------------------------------------------------- */
+
+.barra-admin {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 11px 14px;
+  margin-bottom: 18px;
+  border-radius: var(--raio-p);
+  border: 1px dashed var(--borda-forte);
+  background: var(--cartao-2);
+  font-size: .88rem;
+}
+
+.barra-admin__rotulo {
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--texto-fraco);
+  border-right: 1px solid var(--borda-forte);
+  padding-right: 12px;
+}
+
+.barra-admin__nota { color: var(--texto-fraco); font-size: .8rem; margin-left: auto; }
+
+@media (max-width: 640px) {
+  .barra-admin__nota { margin-left: 0; }
+}
+
+/* --------------------------------------------------------------------- */
 /* Leitura do talão com IA                                                */
 /* --------------------------------------------------------------------- */
 
@@ -705,18 +737,419 @@ table.tabela tbody tr:hover td { background: rgba(255, 255, 255, .02); }
 .dica__data { color: var(--texto-fraco); margin-bottom: 5px; font-size: .78rem; }
 .dica__linha { display: flex; align-items: center; gap: 7px; }
 
+/* O bloco do telemóvel está no fim do ficheiro. */
+
+/* =========================================================================
+   TELEMÓVEL
+   =========================================================================
+   Aqui a aplicação deixa de ser um site encolhido e passa a portar-se como
+   uma app: navegação em baixo ao alcance do polegar, tabelas convertidas em
+   cartões e nada de barras horizontais para ver uma coluna.
+   ========================================================================= */
+
 /* --------------------------------------------------------------------- */
-/* Responsivo                                                             */
+/* Navegação inferior                                                     */
 /* --------------------------------------------------------------------- */
 
-@media (max-width: 640px) {
-  .conteudo { padding: 18px 14px 56px; }
-  .cabecalho { padding: 10px 14px; gap: 10px; }
-  h1 { font-size: 1.32rem; }
-  .estatistica__valor { font-size: 1.3rem; }
-  .esconder-movel { display: none; }
-  .grafico { height: 280px; }
-  .lider { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .lider__valor { text-align: left; }
-  .entrada__logo { width: 112px; height: 112px; }
+.nav-inferior {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: none;
+  background: rgba(15, 17, 21, .93);
+  backdrop-filter: blur(18px);
+  border-top: 1px solid var(--borda);
+  padding-bottom: env(safe-area-inset-bottom);
 }
+
+.nav-inferior__item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 9px 2px 8px;
+  min-height: 58px;
+  background: none;
+  border: none;
+  color: var(--texto-fraco);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: color .15s ease;
+}
+
+.nav-inferior__item img {
+  width: 26px;
+  height: 26px;
+  opacity: .5;
+  transition: opacity .15s ease, transform .15s ease;
+}
+
+.nav-inferior__etiqueta {
+  font-size: .64rem;
+  font-weight: 620;
+  letter-spacing: .01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.nav-inferior__item--ativo { color: var(--destaque); }
+.nav-inferior__item--ativo img { opacity: 1; transform: translateY(-1px) scale(1.06); }
+.nav-inferior__item:active img { transform: scale(.92); }
+
+/* Ponto verde por cima do ícone ativo */
+.nav-inferior__item--ativo::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 26px;
+  height: 2.5px;
+  border-radius: 0 0 3px 3px;
+  background: var(--gradiente);
+}
+.nav-inferior__item { position: relative; }
+
+/* Espaço para o conteúdo não ficar debaixo da barra */
+.espaco-nav {
+  display: none;
+  /* Altura da barra mais a do botão flutuante: sem isto o último cartão
+     ficava debaixo do botão e não havia forma de lá chegar. */
+  height: calc(126px + env(safe-area-inset-bottom));
+}
+
+/* --------------------------------------------------------------------- */
+/* Folha que sobe (menu "Mais")                                           */
+/* --------------------------------------------------------------------- */
+
+.folha-fundo {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  backdrop-filter: blur(2px);
+  z-index: 70;
+  animation: aparecer .18s ease;
+}
+
+.folha {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 71;
+  background: var(--cartao);
+  border-top: 1px solid var(--borda-forte);
+  border-radius: 20px 20px 0 0;
+  padding: 10px 14px calc(16px + env(safe-area-inset-bottom));
+  animation: subir .22s cubic-bezier(.22, 1, .36, 1);
+}
+
+.folha__puxador {
+  width: 38px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--borda-forte);
+  margin: 4px auto 14px;
+}
+
+.folha__item {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 13px 10px;
+  border: none;
+  background: none;
+  color: var(--texto);
+  font-size: .98rem;
+  font-weight: 560;
+  border-radius: var(--raio-p);
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.folha__item:active { background: var(--cartao-2); }
+.folha__item--ativo { background: rgba(34, 211, 111, .12); color: #b6f5cf; }
+.folha__item img { width: 30px; height: 30px; }
+
+@keyframes subir { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+
+/* --------------------------------------------------------------------- */
+/* Botão de ação flutuante                                                */
+/* --------------------------------------------------------------------- */
+
+.acao-flutuante {
+  position: fixed;
+  right: 16px;
+  bottom: calc(74px + env(safe-area-inset-bottom));
+  z-index: 55;
+  display: none;
+  align-items: center;
+  gap: 9px;
+  height: 54px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 99px;
+  background: var(--gradiente);
+  color: #04210f;
+  font-weight: 750;
+  font-size: .95rem;
+  box-shadow: 0 10px 28px rgba(18, 180, 95, .38), 0 2px 8px rgba(0, 0, 0, .3);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform .14s ease, box-shadow .14s ease;
+}
+.acao-flutuante:active { transform: scale(.94); box-shadow: 0 6px 16px rgba(18, 180, 95, .3); }
+.acao-flutuante svg { width: 20px; height: 20px; }
+
+/* --------------------------------------------------------------------- */
+/* Cartões de classificação                                               */
+/* --------------------------------------------------------------------- */
+
+.lista-cartoes { display: flex; flex-direction: column; gap: 10px; }
+
+.cartao-lugar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border-radius: var(--raio);
+  border: 1px solid var(--borda);
+  background: var(--cartao);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Risca com a cor do participante, à esquerda */
+.cartao-lugar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--cor-participante, var(--borda-forte));
+}
+
+.cartao-lugar--1 { border-color: rgba(245, 197, 24, .4); background: linear-gradient(100deg, rgba(245, 197, 24, .09), transparent 55%), var(--cartao); }
+.cartao-lugar--2 { border-color: rgba(207, 214, 228, .26); }
+.cartao-lugar--3 { border-color: rgba(205, 139, 82, .28); }
+
+.cartao-lugar__corpo { flex: 1; min-width: 0; }
+.cartao-lugar__nome { font-weight: 680; font-size: 1rem; }
+.cartao-lugar__nota { font-size: .78rem; color: var(--texto-fraco); margin-top: 2px; }
+.cartao-lugar__valor { text-align: right; }
+.cartao-lugar__valor strong { display: block; font-size: 1.22rem; font-weight: 740; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.cartao-lugar__valor span { font-size: .74rem; color: var(--texto-fraco); font-variant-numeric: tabular-nums; }
+
+/* --------------------------------------------------------------------- */
+/* Cartões de pesagem                                                     */
+/* --------------------------------------------------------------------- */
+
+.cartao-pesagem {
+  border-radius: var(--raio);
+  border: 1px solid var(--borda);
+  background: var(--cartao);
+  padding: 13px 14px;
+}
+
+.cartao-pesagem__topo { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+.cartao-pesagem__quem { flex: 1; min-width: 0; font-weight: 620; }
+.cartao-pesagem__data { font-size: .78rem; color: var(--texto-fraco); }
+
+.cartao-pesagem__valores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.cartao-pesagem__valor {
+  background: var(--fundo-2);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-p);
+  padding: 8px 10px;
+}
+.cartao-pesagem__rotulo { font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; color: var(--texto-fraco); }
+.cartao-pesagem__numero { font-size: 1.02rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 1px; }
+
+.cartao-pesagem__fundo { display: flex; align-items: center; gap: 8px; margin-top: 11px; flex-wrap: wrap; }
+.cartao-pesagem__nota { font-size: .82rem; color: var(--texto-suave); margin-top: 9px; }
+
+/* --------------------------------------------------------------------- */
+/* O que muda abaixo dos 760 px                                           */
+/* --------------------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  body { font-size: 15px; }
+
+  .conteudo { padding: 16px 16px 24px; }
+
+  /* Cabeçalho mais fino e colado ao topo */
+  .cabecalho { padding: 10px 16px; gap: 10px; padding-top: calc(10px + env(safe-area-inset-top)); }
+  .marca img { height: 22px; }
+  .etiqueta-ambiente { font-size: .62rem; padding: 2px 7px; }
+
+  h1 { font-size: 1.34rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.08rem; }
+
+  .secao { margin-bottom: 22px; }
+  .secao__topo { gap: 10px; }
+
+  /* A barra de baixo substitui os separadores do topo */
+  .separadores { display: none; }
+  .nav-inferior { display: flex; }
+  .espaco-nav { display: block; }
+  .acao-flutuante { display: inline-flex; }
+
+  /* Tabelas dão lugar a cartões; quem sobrar deixa de cortar texto */
+  .so-computador { display: none !important; }
+  .so-telemovel { display: block; }
+
+  .esconder-movel { display: none; }
+
+  /* Estatísticas a dois por linha, em vez de quatro espremidas */
+  .grelha--4 { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .grelha--3, .grelha--2 { grid-template-columns: 1fr; }
+  .estatistica { padding: 13px 14px; }
+  .estatistica__valor { font-size: 1.28rem; }
+  .estatistica__rotulo { font-size: .68rem; }
+
+  .grafico { height: 260px; }
+
+  /* Faixa do líder: ícone, quem é e o número na primeira linha; o contexto
+     por baixo. Empilhada à flex, o número aparecia antes do nome. */
+  .lider {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    gap: 8px 11px;
+    padding: 13px 14px;
+  }
+  .lider > .icone-marca { grid-area: 1 / 1; }
+  .lider > .linha { grid-area: 1 / 2; }
+  .lider__valor { grid-area: 1 / 3; justify-self: end; text-align: right; }
+  .lider__texto { grid-area: 2 / 1 / 3 / 4; }
+  .lider__valor strong { font-size: 1.34rem; }
+  .lider__rotulo { font-size: .66rem; }
+  .lider__nome { font-size: 1.08rem; }
+
+  .entrada__logo { width: 118px; height: 118px; }
+
+  /* Alvos de toque decentes e sem realce azul do iOS */
+  .btn { min-height: 44px; padding: 10px 16px; }
+  .btn--p { min-height: 36px; }
+  .chip { min-height: 38px; display: inline-flex; align-items: center; }
+  .chip-cor { width: 40px; height: 40px; }
+  button, a, .chip, .separador { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+  /* 16 px nos campos: abaixo disto o iOS dá zoom ao tocar */
+  .campo input[type="text"],
+  .campo input[type="number"],
+  .campo input[type="date"],
+  .campo select,
+  .campo textarea { font-size: 16px; padding: 12px 13px; }
+
+  /* Modais em folha, subindo do fundo */
+  .modal-fundo { padding: 0; align-items: flex-end; }
+  .modal {
+    max-width: 100%;
+    border-radius: 20px 20px 0 0;
+    max-height: 94vh;
+    display: flex;
+    flex-direction: column;
+    animation: subir .24s cubic-bezier(.22, 1, .36, 1);
+  }
+  .modal__topo { padding: 15px 16px; }
+  .modal__corpo { padding: 16px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .modal__fundo { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+  .modal__fundo .btn { flex: 1; }
+
+  .galeria { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .galeria__item img { height: 140px; }
+
+  .toasts { bottom: calc(80px + env(safe-area-inset-bottom)); left: 16px; right: 16px; max-width: none; }
+
+  .comparacao { grid-template-columns: 1fr auto 1fr; gap: 7px; }
+  .comparacao__lado { padding: 9px 6px; }
+  .comparacao__valor { font-size: .98rem; }
+
+  .barra-admin { font-size: .84rem; gap: 9px; }
+  .barra-admin__rotulo { border-right: none; padding-right: 0; flex-basis: 100%; }
+}
+
+.so-telemovel { display: none; }
+
+/* --------------------------------------------------------------------- */
+/* Movimento                                                              */
+/* --------------------------------------------------------------------- */
+
+/* Entrada suave e escalonada nas listas de cartões */
+.lista-cartoes > * {
+  animation: entrar-cartao .32s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+.lista-cartoes > *:nth-child(1) { animation-delay: .02s; }
+.lista-cartoes > *:nth-child(2) { animation-delay: .06s; }
+.lista-cartoes > *:nth-child(3) { animation-delay: .1s; }
+.lista-cartoes > *:nth-child(4) { animation-delay: .14s; }
+.lista-cartoes > *:nth-child(5) { animation-delay: .18s; }
+.lista-cartoes > *:nth-child(n + 6) { animation-delay: .2s; }
+
+@keyframes entrar-cartao {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Resposta ao toque nos cartões que se carregam */
+.cartao-evento { -webkit-tap-highlight-color: transparent; }
+.cartao-evento:active { transform: scale(.985); }
+
+/* Quem pediu menos movimento, tem menos movimento. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* --------------------------------------------------------------------- */
+/* Telemóvel: pôr o que interessa acima da dobra                          */
+/* --------------------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  /* Cabeçalho do evento compacto: título, estado e uma linha de contexto */
+  .secao__topo { margin-bottom: 10px; }
+  .secao__topo h1 { font-size: 1.24rem; }
+  .secao__topo .subtitulo { font-size: .82rem; margin-top: 4px; }
+
+  /* Barra de administração numa linha só */
+  .barra-admin { padding: 9px 12px; margin-bottom: 12px; gap: 8px; }
+  .barra-admin__rotulo { display: none; }
+
+  /* Filtros encostados, sem quebrar para três linhas */
+  .chips { gap: 7px; }
+  .chip { padding: 7px 13px; font-size: .84rem; }
+
+  /* Avisos mais discretos */
+  .alerta { padding: 11px 13px; font-size: .85rem; }
+
+  /* Gráfico com menos moldura à volta */
+  .cartao { padding: 14px; }
+  .grafico { height: 240px; }
+  .grafico-legenda { gap: 10px; margin-top: 8px; }
+}
+
+/* Ícones de traço, para os destinos que a folha da marca não cobre */
+.traco { width: 25px; height: 25px; opacity: .75; transition: opacity .15s ease, transform .15s ease; }
+.nav-inferior__item--ativo .traco { opacity: 1; transform: translateY(-1px); }
+.folha__item .traco { width: 24px; height: 24px; flex-shrink: 0; margin: 3px; }

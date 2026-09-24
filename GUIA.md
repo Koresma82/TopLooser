@@ -236,7 +236,33 @@ Cada push publica no ambiente do ramo respetivo, sozinho.
 
 ---
 
-## Parte 5 — Netlify, um site com três contextos (20 min)
+## Parte 5 — Netlify (20 min)
+
+> **Variante simples (a recomendada para começar).** Se só quiseres o site de
+> produção no Netlify e testares `dev` e `test` na tua máquina, **salta o 5.2** e no
+> 5.3 mete os valores do `toplooser-prod` com **Same value for all deploy contexts**.
+> O `dev` e o `test` continuam a correr localmente contra o `toplooser-test`, e no
+> Firebase só tens de autorizar `toplooser.netlify.app`. Ligas os deploys por ramo
+> mais tarde, quando fizer falta.
+
+### 5.0 Antes de tudo: a verificação de segredos
+
+O Netlify procura os valores das variáveis de ambiente no resultado do build e
+**falha o deploy** se os encontrar. As variáveis `VITE_*` são embutidas no JavaScript
+de propósito — é assim que a app sabe a que projeto Firebase se liga — por isso
+apareceriam sempre, e o build nunca passaria.
+
+O `netlify.toml` já traz a lista de exceções (`SECRETS_SCAN_OMIT_KEYS`), por isso não
+tens nada a fazer. Fica só a saber porquê, e a saber que a `ANTHROPIC_API_KEY` **não**
+está nessa lista de propósito: essa é mesmo secreta, só corre no servidor, e se algum
+dia aparecer no build queremos que o deploy falhe.
+
+Duas consequências práticas, na página das variáveis:
+
+- **Não marques nenhuma `VITE_*` como "Contains secret values".** Essa marca **não se
+  consegue tirar depois** e passarias a ter builds a falhar sem remédio simples.
+- A `ANTHROPIC_API_KEY` essa sim, podes (e deves) marcar como secreta.
+
 
 ### 5.1 Criar o site
 
@@ -365,6 +391,100 @@ ao projeto de teste.
 
 ---
 
+## Parte 6 — O login no iPhone (10 min)
+
+Salta isto e o login funciona no computador, mas **no iPhone dá erro**:
+
+> Unable to process request due to missing initial state. This may happen if
+> browser sessionStorage is inaccessible or accidentally cleared.
+
+### Porque acontece
+
+O Firebase faz o login numa página alojada em `toplooser-prod.firebaseapp.com`.
+Para o Safari, esse é um **domínio terceiro** em relação ao teu site — e o Safari
+bloqueia o armazenamento de terceiros desde a versão 16.1. O estado do login
+perde-se a meio do caminho e o fluxo rebenta. O Firefox e o Chrome recentes fazem o
+mesmo.
+
+Não é um erro da app: é o browser a proteger o utilizador. A solução é fazer o login
+passar pelo **teu** domínio.
+
+### 6.1 O reencaminhamento (já está feito)
+
+O `netlify.toml` já leva a regra que reencaminha `/__/auth/*` para o Firebase, de
+forma transparente. Confirma só que o id do projeto está certo:
+
+```toml
+[[redirects]]
+  from = "/__/auth/*"
+  to = "https://toplooser-prod.firebaseapp.com/__/auth/:splat"
+  status = 200
+  force = true
+```
+
+Tem de ser `status = 200`, que é um reencaminhamento transparente. Com `301` ou `302`
+o problema mantém-se, porque o browser continuaria a ir ao domínio de fora.
+
+### 6.2 Mudar o domínio de autenticação
+
+No Netlify, em **Environment variables**, muda a `VITE_FB_AUTH_DOMAIN` **só no
+contexto de produção**:
+
+| Antes | Depois |
+|---|---|
+| `toplooser-prod.firebaseapp.com` | `toplooser.netlify.app` |
+
+**Local fica como está** (`toplooser-test.firebaseapp.com`): em `localhost` não há
+proxy e o popup funciona à vontade.
+
+### 6.3 Autorizar o novo endereço no Google
+
+Este é o passo que se esquece e depois dá `redirect_uri_mismatch`.
+
+1. <https://console.cloud.google.com> → escolhe o projeto `toplooser-prod`
+2. Na pesquisa do topo, escreve **Google Auth Platform** e entra
+3. No menu da esquerda, **Clients** (não é o *Overview*, que é só métricas)
+4. Abre o cliente que diz *Web client (auto created by Google Service)* — foi o
+   Firebase que o criou
+5. Em **Authorised redirect URIs** / **URIs de redirecionamento autorizados**,
+   **Add URI**:
+
+```
+https://toplooser.netlify.app/__/auth/handler
+```
+
+(troca `toplooser.netlify.app` pelo endereço verdadeiro do teu site)
+
+6. **Save**. Pode demorar alguns minutos a fazer efeito.
+
+> A consola mudou de sítio há pouco tempo: isto costumava estar em **APIs e
+> serviços → Credenciais**. Esse caminho ainda funciona e leva à mesma lista.
+
+### 6.4 Quem pode entrar (Audience)
+
+Ainda no **Google Auth Platform**, abre **Audience**. Repara no *Publishing
+status*:
+
+- **Testing** — só entram as contas que estiverem na lista de *Test users*, até
+  100. Se deixares assim, os teus amigos levam com um erro ao tentar entrar.
+  Ou os acrescentas um a um em **Add users**, ou passas a produção.
+- **In production** — entra qualquer pessoa com conta Google.
+
+Para este caso, **In production** é o certo e não exige verificação do Google: a
+app só pede o nome, o email e a foto, que são âmbitos não sensíveis. A
+verificação só é exigida a quem pede acesso a dados como Gmail ou Drive.
+
+### 6.5 Confirmar
+
+Volta a fazer deploy (as variáveis só entram num build novo) e abre o site no
+iPhone. O login deve correr sem sair do teu domínio.
+
+> **Nota:** a app agora vai direta ao redirecionamento em iPhone e em app instalada
+> no ecrã inicial, onde a janela de popup é quase sempre bloqueada. No computador
+> continua a usar o popup, que é mais rápido.
+
+---
+
 ## Quando mexeres nas regras
 
 As regras do Firestore e do Storage **não vão com o push** — o Netlify não sabe do
@@ -392,4 +512,7 @@ npm run regras:prod    # só depois de validado
 | Upload de fotos falha | `VITE_FB_STORAGE_BUCKET` errado, ou Storage não ativado nesse projeto. |
 | "A leitura automática não está disponível neste ambiente" | Estás no porto 5173 em vez do 8888, ou falta a chave da API. |
 | "A chave da API foi recusada" | Chave errada, revogada, ou conta sem saldo. |
+| "missing initial state" no iPhone | Falta a parte 6: o login está a passar por `firebaseapp.com`, que o Safari trata como domínio terceiro. |
+| `redirect_uri_mismatch` no login | Falta o `https://<dominio>/__/auth/handler` nos URIs de redirecionamento do cliente OAuth, em Google Auth Platform → Clients (passo 6.3). |
+| Os teus amigos não conseguem entrar, tu consegues | O ecrã de consentimento está em *Testing*: só entram os test users. Passa a *In production* em Google Auth Platform → Audience (passo 6.4). |
 | A leitura falha só em produção | A chave não foi definida nesse contexto, ou foi definida com prefixo `VITE_`. |

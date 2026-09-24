@@ -1,4 +1,5 @@
 import { Estatistica, IconeMarca, Vazio } from '../Comuns'
+import { useTelemovel } from '../../hooks/useEcra'
 import Vencedores from './Vencedores'
 import VencedoresMensais from './VencedoresMensais'
 import { useAuth } from '../../contexts/AuthContext'
@@ -15,6 +16,7 @@ import { comSinal, comUnidade, dataCurta, diasEntre, hojeISO, percentagemComSina
 
 export default function TabResumo({ evento, participantes, registos, euParticipante }) {
   const { uid } = useAuth()
+  const telemovel = useTelemovel()
   const estado = estadoEvento(evento)
   const cats = categoriasDoEvento(evento)
   const catPrincipal = cats[0]
@@ -28,18 +30,22 @@ export default function TabResumo({ evento, participantes, registos, euParticipa
     : []
   const minhaVariacao = calcularVariacao(minhaSerie, catPrincipal)
 
+  // No telemóvel os números vêm primeiro: a descrição do desafio já se leu uma
+  // vez e depois disso só empurra o que interessa para fora do ecrã.
+  const descricao = evento.descricao ? (
+    <div className="cartao" style={{ marginBottom: 18 }}>
+      <p>{evento.descricao}</p>
+      {evento.premio && (
+        <p className="subtitulo" style={{ marginTop: 10 }}>
+          <strong>Prémio:</strong> {evento.premio}
+        </p>
+      )}
+    </div>
+  ) : null
+
   return (
     <>
-      {evento.descricao && (
-        <div className="cartao" style={{ marginBottom: 18 }}>
-          <p>{evento.descricao}</p>
-          {evento.premio && (
-            <p className="subtitulo" style={{ marginTop: 10 }}>
-              <strong>Prémio:</strong> {evento.premio}
-            </p>
-          )}
-        </div>
-      )}
+      {!telemovel && descricao}
 
       <div className="grelha grelha--4" style={{ marginBottom: 22 }}>
         <Estatistica
@@ -92,6 +98,8 @@ export default function TabResumo({ evento, participantes, registos, euParticipa
           />
         )}
       </div>
+
+      {telemovel && descricao}
 
       {fechado ? (
         <section className="secao">

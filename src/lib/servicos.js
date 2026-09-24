@@ -81,7 +81,7 @@ export async function encerrarEvento(eventoId, encerrar = true) {
 
 // Apaga o evento e tudo o que tem dentro (subcoleções e ficheiros).
 export async function apagarEvento(eventoId) {
-  const subcolecoes = ['registos', 'galeria', 'documentos', 'participantes']
+  const subcolecoes = ['registos', 'anexos', 'galeria', 'documentos', 'participantes']
   for (const nome of subcolecoes) {
     const snap = await getDocs(collection(db, 'eventos', eventoId, nome))
     for (const d of snap.docs) {
@@ -115,8 +115,8 @@ export async function atualizarParticipante(eventoId, uid, dados) {
 }
 
 export async function sairDoEvento(eventoId, uid) {
-  // Remove primeiro os registos e ficheiros do próprio.
-  for (const nome of ['registos', 'galeria', 'documentos']) {
+  // Remove primeiro os registos, anexos e ficheiros do próprio.
+  for (const nome of ['registos', 'anexos', 'galeria', 'documentos']) {
     const snap = await getDocs(collection(db, 'eventos', eventoId, nome))
     for (const d of snap.docs) {
       if (d.data()?.uid !== uid) continue
@@ -131,60 +131,108 @@ export async function sairDoEvento(eventoId, uid) {
 // ---------------------------------------------------------------------------
 // Registos de pesagem
 // ---------------------------------------------------------------------------
+//
+// Cada pesagem fica em dois documentos com o MESMO id:
+//
+//   registos/{id}   os números e a data  -> qualquer pessoa com conta lê,
+//                                           para os gráficos funcionarem
+//   anexos/{id}     foto do talão, notas -> só quem está no evento lê
+//                   e a leitura da IA
+//
+// O Firestore não tem regras ao nível do campo. Se a foto ficasse ao lado dos
+// números, quem lesse os números levava com o endereço da foto atrás.
 
-// dados: { data, valores: {...}, notas, origem }
+// Monta o documento de anexo, ou null se não houver nada para guardar.
+function montarAnexo(uid, dados, anexoFicheiro) {
+  const notas = (dados.notas || '').trim()
+  if (!anexoFicheiro && !notas && !dados.leituraIA) return null
+  return {
+    uid,
+    notas,
+    leituraIA: dados.leituraIA || null,
+    ficheiroURL: anexoFicheiro?.url || '',
+    ficheiroPath: anexoFicheiro?.caminho || ''
+  }
+}
+
+// dados: { data, valores: {...}, notas, leituraIA }
 // ficheiro: foto do talão da farmácia (opcional)
 export async function criarRegisto(eventoId, utilizador, participante, dados, ficheiro) {
-  let anexo = null
+  let anexoFicheiro = null
   if (ficheiro) {
     const nome = `${Date.now()}_${nomeSeguro(ficheiro.name)}`
-    anexo = await enviarFicheiro(`eventos/${eventoId}/registos/${utilizador.uid}/${nome}`, ficheiro)
+    anexoFicheiro = await enviarFicheiro(
+      `eventos/${eventoId}/registos/${utilizador.uid}/${nome}`,
+      ficheiro
+    )
   }
 
-  const valores = limparValores(dados.valores, participante)
-
-  await addDoc(collection(db, 'eventos', eventoId, 'registos'), {
+  const criado = await addDoc(collection(db, 'eventos', eventoId, 'registos'), {
     uid: utilizador.uid,
     data: dados.data,
-    valores,
+    valores: limparValores(dados.valores, participante),
     alturaCm: Number(participante?.alturaCm) || null,
-    notas: (dados.notas || '').trim(),
     origem: dados.leituraIA ? 'talao-ia' : ficheiro ? 'talao' : 'manual',
-    leituraIA: dados.leituraIA || null,
-    ficheiroURL: anexo?.url || '',
-    ficheiroPath: anexo?.caminho || '',
+    temAnexo: Boolean(anexoFicheiro),
     criadoEm: serverTimestamp()
   })
+
+  const anexo = montarAnexo(utilizador.uid, dados, anexoFicheiro)
+  if (anexo) {
+    await setDoc(doc(db, 'eventos', eventoId, 'anexos', criado.id), {
+      ...anexo,
+      criadoEm: serverTimestamp()
+    })
+  }
 }
 
 export async function atualizarRegisto(eventoId, registoId, participante, dados, ficheiro) {
+  let anexoFicheiro = null
+  if (ficheiro) {
+    const nome = `${Date.now()}_${nomeSeguro(ficheiro.name)}`
+    anexoFicheiro = await enviarFicheiro(
+      `eventos/${eventoId}/registos/${participante.uid}/${nome}`,
+      ficheiro
+    )
+  }
+
   const alteracoes = {
     data: dados.data,
     valores: limparValores(dados.valores, participante),
     alturaCm: Number(participante?.alturaCm) || null,
+    atualizadoEm: serverTimestamp()
+  }
+  if (anexoFicheiro) {
+    alteracoes.origem = dados.leituraIA ? 'talao-ia' : 'talao'
+    alteracoes.temAnexo = true
+  }
+  await updateDoc(doc(db, 'eventos', eventoId, 'registos', registoId), alteracoes)
+
+  // O anexo é reescrito por inteiro quando há foto nova; sem foto nova,
+  // só se mexe nas notas e na leitura, para não apagar a foto que lá estava.
+  const referencia = doc(db, 'eventos', eventoId, 'anexos', registoId)
+  const parcial = {
+    uid: participante.uid,
     notas: (dados.notas || '').trim(),
     atualizadoEm: serverTimestamp()
   }
-
-  if (dados.leituraIA) alteracoes.leituraIA = dados.leituraIA
-
-  if (ficheiro) {
-    const nome = `${Date.now()}_${nomeSeguro(ficheiro.name)}`
-    const anexo = await enviarFicheiro(
-      `eventos/${eventoId}/registos/${participante.uid}/${nome}`,
-      ficheiro
-    )
-    alteracoes.ficheiroURL = anexo.url
-    alteracoes.ficheiroPath = anexo.caminho
-    alteracoes.origem = dados.leituraIA ? 'talao-ia' : 'talao'
+  if (dados.leituraIA) parcial.leituraIA = dados.leituraIA
+  if (anexoFicheiro) {
+    parcial.ficheiroURL = anexoFicheiro.url
+    parcial.ficheiroPath = anexoFicheiro.caminho
   }
-
-  await updateDoc(doc(db, 'eventos', eventoId, 'registos', registoId), alteracoes)
+  await setDoc(referencia, parcial, { merge: true })
 }
 
 export async function apagarRegisto(eventoId, registo) {
   if (registo.ficheiroPath) await apagarFicheiro(registo.ficheiroPath)
   await deleteDoc(doc(db, 'eventos', eventoId, 'registos', registo.id))
+  try {
+    await deleteDoc(doc(db, 'eventos', eventoId, 'anexos', registo.id))
+  } catch (e) {
+    // O registo pode nao ter anexo nenhum; nao vale a pena interromper.
+    console.error(e)
+  }
 }
 
 // Converte os campos do formulário em números e calcula o IMC quando dá.

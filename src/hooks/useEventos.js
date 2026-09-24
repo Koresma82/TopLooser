@@ -81,7 +81,8 @@ export function useEvento(eventoId) {
 
   const [evento, setEvento] = useState(null)
   const [participantes, setParticipantes] = useState([])
-  const [registos, setRegistos] = useState([])
+  const [numeros, setNumeros] = useState([])
+  const [anexos, setAnexos] = useState([])
   const [galeria, setGaleria] = useState([])
   const [documentos, setDocumentos] = useState([])
   const [aCarregar, setACarregar] = useState(true)
@@ -121,17 +122,32 @@ export function useEvento(eventoId) {
   )
   const podeVerDados = souParticipante || isAdmin
 
-  // Registos, galeria e documentos: só para quem está no evento (ou admin).
+  // Os números das pesagens: qualquer pessoa com conta lê, para os gráficos e a
+  // classificação funcionarem também para quem só está a assistir.
   useEffect(() => {
-    if (!eventoId || !podeVerDados || configuracaoEmFalta) {
-      setRegistos([])
+    if (!eventoId || configuracaoEmFalta) {
+      setNumeros([])
       return undefined
     }
     const q = query(collection(db, 'eventos', eventoId, 'registos'), orderBy('data', 'asc'))
     return onSnapshot(
       q,
-      (snap) => setRegistos(ordenarDocs(snap)),
+      (snap) => setNumeros(ordenarDocs(snap)),
       (e) => setErro(e)
+    )
+  }, [eventoId])
+
+  // Anexos (foto do talão, notas, leitura da IA), galeria e documentos:
+  // só para quem está no evento, ou para o admin.
+  useEffect(() => {
+    if (!eventoId || !podeVerDados || configuracaoEmFalta) {
+      setAnexos([])
+      return undefined
+    }
+    return onSnapshot(
+      collection(db, 'eventos', eventoId, 'anexos'),
+      (snap) => setAnexos(ordenarDocs(snap)),
+      () => {}
     )
   }, [eventoId, podeVerDados])
 
@@ -165,6 +181,17 @@ export function useEvento(eventoId) {
     () => participantes.find((p) => p.uid === uid) || null,
     [participantes, uid]
   )
+
+  // Junta cada registo ao seu anexo. Para um espectador os anexos vêm vazios,
+  // por isso os registos chegam-lhe só com os números — que é o que se quer.
+  const registos = useMemo(() => {
+    if (!anexos.length) return numeros
+    const porId = new Map(anexos.map((a) => [a.id, a]))
+    return numeros.map((r) => {
+      const anexo = porId.get(r.id)
+      return anexo ? { ...r, ...anexo, id: r.id, uid: r.uid } : r
+    })
+  }, [numeros, anexos])
 
   return {
     evento,

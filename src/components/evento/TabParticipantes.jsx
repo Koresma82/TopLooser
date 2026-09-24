@@ -32,7 +32,7 @@ export default function TabParticipantes({ evento, participantes, registos, euPa
 
   return (
     <>
-      <div className="secao__topo">
+      <div className="secao__topo so-computador">
         <div className="linha" style={{ flexWrap: 'nowrap', gap: 12 }}>
           <IconeMarca nome="comunidade" />
           <div>

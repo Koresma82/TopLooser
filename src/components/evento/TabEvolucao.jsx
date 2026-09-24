@@ -6,8 +6,10 @@ import { classificacao } from '../../lib/calculos'
 import { corPorId } from '../../lib/cores'
 import { comSinal, comUnidade, dataCurta, percentagemComSinal, primeiroNome } from '../../lib/formato'
 import { Avatar, IconeMarca, Vazio } from '../Comuns'
+import { useTelemovel } from '../../hooks/useEcra'
 
 export default function TabEvolucao({ evento, participantes, registos }) {
+  const telemovel = useTelemovel()
   const cats = categoriasDoEvento(evento)
   const [catId, setCatId] = useState(cats[0]?.id || 'peso')
   const [vista, setVista] = useState('valor')
@@ -72,6 +74,47 @@ export default function TabEvolucao({ evento, participantes, registos }) {
         <GraficoEvolucao participantes={participantes} registos={registos} cat={cat} vista={vista} />
       </div>
 
+      {telemovel ? (
+        <div className="lista-cartoes">
+          {linhas.map((l) => {
+            const cor = corPorId(l.participante.cor)
+            const bom = l.ganho !== null && l.ganho > 0
+            const mau = l.ganho !== null && l.ganho < 0
+            return (
+              <div
+                className="cartao-lugar"
+                key={l.participante.uid}
+                style={{ '--cor-participante': cor }}
+              >
+                <Avatar
+                  nome={l.participante.nome}
+                  fotoURL={l.participante.fotoURL}
+                  cor={cor}
+                />
+                <div className="cartao-lugar__corpo">
+                  <div className="cartao-lugar__nome">{primeiroNome(l.participante.nome)}</div>
+                  <div className="cartao-lugar__nota">
+                    {l.primeiro ? (
+                      <>
+                        {comUnidade(l.primeiro.valor, cat)} → {comUnidade(l.ultimo.valor, cat)} ·{' '}
+                        {l.nRegistos} {l.nRegistos === 1 ? 'pesagem' : 'pesagens'}
+                      </>
+                    ) : (
+                      'ainda sem pesagens'
+                    )}
+                  </div>
+                </div>
+                <div className="cartao-lugar__valor">
+                  <strong className={bom ? 'bom' : mau ? 'mau' : 'neutro'}>
+                    {percentagemComSinal(l.pct, 1)}
+                  </strong>
+                  <span>{comSinal(l.abs, cat.casas, cat.unidade)}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
       <div className="cartao cartao--limpo">
         <div className="tabela-envolvente">
           <table className="tabela">
@@ -133,6 +176,7 @@ export default function TabEvolucao({ evento, participantes, registos }) {
           </table>
         </div>
       </div>
+      )}
     </>
   )
 }

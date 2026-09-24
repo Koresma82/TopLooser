@@ -2,12 +2,29 @@ rules_version = '2';
 
 // TopLooser - regras de seguranca Firestore
 //
-// Principios:
-//  - Apenas o admin (koresma@gmail.com) cria, edita ou apaga eventos.
-//  - Qualquer utilizador autenticado ve a lista de eventos e pode inscrever-se
-//    (se o evento permitir inscricoes), criando o seu proprio documento de participante.
-//  - Registos de pesagem, galeria e documentos sao visiveis a quem esta inscrito no evento.
-//  - Cada participante so escreve nos seus proprios registos. O admin pode moderar tudo.
+// Tres papeis:
+//
+//  ADMIN (koresma@gmail.com)
+//    Cria, edita e apaga eventos. Abre e fecha inscricoes. Remove participantes.
+//    Apaga registos, fotos e documentos de qualquer pessoa.
+//
+//  PARTICIPANTE (inscrito no evento)
+//    Regista as suas pesagens, edita e apaga as suas. Poe fotos na galeria e
+//    documentos. Ve tudo o que ha no evento.
+//
+//  ESPECTADOR (autenticado, nao inscrito)
+//    Ve os numeros das pesagens - e so isso, para os graficos e a classificacao
+//    funcionarem. Nao escreve nada em lado nenhum.
+//
+// Por isso os registos estao partidos em duas coleccoes:
+//
+//    registos/{id}   numeros e data      -> qualquer autenticado le
+//    anexos/{id}     foto do talao,      -> so participantes e admin leem
+//                    notas, leitura IA
+//
+// Tem o mesmo id nas duas, e a app junta-os. O Firestore nao tem regras ao nivel
+// do campo: se a foto ficasse no mesmo documento dos numeros, quem lesse os
+// numeros lia tambem o endereco da foto.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -56,7 +73,7 @@ service cloud.firestore {
     // Eventos
     // ---------------------------------------------------------------
     match /eventos/{eventoId} {
-      // Todos os autenticados veem os eventos para se poderem inscrever.
+      // Todos os autenticados veem os eventos, para se inscreverem ou assistirem.
       allow read: if autenticado();
       allow create, update, delete: if isAdmin();
 
@@ -66,22 +83,35 @@ service cloud.firestore {
       match /participantes/{uid} {
         allow read: if autenticado();
 
-        // Inscricao propria, desde que o evento aceite inscricoes.
+        // Inscricao propria, enquanto o evento aceitar inscricoes.
+        // Quem nao se inscrever fica espectador.
         allow create: if autenticado()
           && request.auth.uid == uid
           && request.resource.data.uid == uid
           && eventoDoc(eventoId).estado != 'encerrado'
           && eventoDoc(eventoId).inscricoesAbertas == true;
 
-        // Cada um edita a sua ficha (cor, altura, alcunha). O admin pode moderar.
+        // Cada um edita a sua ficha (cor, altura, alcunha). O admin modera.
         allow update: if (autenticado() && request.auth.uid == uid) || isAdmin();
         allow delete: if (autenticado() && request.auth.uid == uid) || isAdmin();
       }
 
       // -------------------------------------------------------------
-      // Registos de pesagem
+      // Registos: so os numeros. Leitura aberta a quem tem conta, para os
+      // graficos e a classificacao funcionarem para os espectadores.
       // -------------------------------------------------------------
       match /registos/{registoId} {
+        allow read: if autenticado();
+        allow create: if participa(eventoId) && vouSerDono();
+        allow update: if (participa(eventoId) && souDono(resource) && vouSerDono()) || isAdmin();
+        allow delete: if (participa(eventoId) && souDono(resource)) || isAdmin();
+      }
+
+      // -------------------------------------------------------------
+      // Anexos do registo: foto do talao, notas e leitura da IA.
+      // Mesmo id do registo. So para quem esta no evento.
+      // -------------------------------------------------------------
+      match /anexos/{registoId} {
         allow read: if participa(eventoId) || isAdmin();
         allow create: if participa(eventoId) && vouSerDono();
         allow update: if (participa(eventoId) && souDono(resource) && vouSerDono()) || isAdmin();

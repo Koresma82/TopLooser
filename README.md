@@ -42,12 +42,21 @@ React + Vite + Firebase (Auth, Firestore, Storage) + Netlify. Interface em portu
 
 ### Quem vê o quê
 
-| | Não inscrito | Participante | Admin |
+| | Espectador | Participante | Admin |
 |---|---|---|---|
 | Lista de eventos | sim | sim | sim |
-| Pesagens, gráficos, galeria, documentos | não | sim | sim |
+| Gráficos de evolução e classificação | sim | sim | sim |
+| Pesagens com foto do talão, notas | não | sim | sim |
+| Galeria e documentos | não | sim | sim |
+| Registar as suas pesagens | não | sim | sim |
+| Inscrever-se (com inscrições abertas) | sim | — | sim |
+| Abrir e fechar inscrições | não | não | sim |
+| Remover participantes | não | não | sim |
 | Criar / editar / apagar eventos | não | não | sim |
 | Apagar registos e fotos de outros | não | não | sim |
+
+**Espectador** é qualquer pessoa autenticada que não esteja inscrita no evento: vê os
+números e os gráficos, não escreve nada e não vê as fotos nem os documentos.
 
 O administrador é definido pelo email em `VITE_ADMIN_EMAIL` **e** está escrito nas
 regras do Firestore e do Storage. Para mudar de administrador é preciso alterar os dois.
@@ -237,11 +246,13 @@ eventos/{eventoId}
   participantes/{uid}
     uid, nome, email, fotoURL, cor, alturaCm, entrouEm
 
-  registos/{registoId}
+  registos/{registoId}          <- leitura aberta a qualquer autenticado
     uid, data, valores{peso, imc, massaGorda, …}, alturaCm,
-    notas, origem ('manual' | 'talao' | 'talao-ia'),
-    leituraIA{modelo, confianca, farmacia, hora, campos[]},
-    ficheiroURL, ficheiroPath
+    origem ('manual' | 'talao' | 'talao-ia'), temAnexo
+
+  anexos/{registoId}            <- só participantes e admin; mesmo id do registo
+    uid, notas, ficheiroURL, ficheiroPath,
+    leituraIA{modelo, confianca, farmacia, hora, campos[]}
 
   galeria/{fotoId}
     uid, nome, legenda, ficheiroURL, ficheiroPath
@@ -309,6 +320,20 @@ vem de trás de propósito — exigir duas pesagens dentro do mesmo mês deixava
 quem só vai à farmácia uma vez por mês. O primeiro mês do desafio não tem vencedor,
 por não haver mês anterior com que comparar.
 
-**Sair do evento** apaga os registos, fotos e documentos dessa pessoa nesse evento.
+**Porque é que a pesagem está em dois documentos.** Os espectadores precisam de ler os
+números para os gráficos funcionarem, mas não devem ver a foto do talão nem as notas.
+O Firestore não tem regras ao nível do campo — quem pode ler um documento lê-o
+inteiro — por isso os números ficam em `registos/{id}` (leitura aberta a quem tem
+conta) e tudo o resto em `anexos/{id}` (só para quem está no evento). Têm o mesmo id e
+a app junta-os em `useEvento`. Para um espectador os anexos vêm vazios, e o endereço
+da foto nunca chega ao browser dele.
+
+**Tudo o que se vê é em tempo real.** Todas as leituras usam `onSnapshot`, que é uma
+escuta do Firestore e não uma leitura pontual: quando alguém regista uma pesagem, os
+gráficos, a classificação e o líder do dia mudam sozinhos nos ecrãs de toda a gente,
+sem ninguém ter de recarregar a página.
+
+**Sair do evento** apaga os registos, anexos, fotos e documentos dessa pessoa nesse
+evento.
 A operação é feita a partir do cliente, documento a documento, o que serve para os
 volumes desta app.

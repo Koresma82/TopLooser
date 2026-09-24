@@ -27,8 +27,23 @@ function LogotipoGoogle() {
   )
 }
 
+// Mensagens por código de erro, em vez de um "não foi possível entrar" para
+// tudo — estes três têm causas muito diferentes e soluções diferentes.
+function mensagemDeErro(e) {
+  switch (e?.code) {
+    case 'auth/unauthorized-domain':
+      return 'Este endereço não está autorizado no Firebase. Acrescenta-o em Authentication → Settings → Authorized domains.'
+    case 'auth/operation-not-allowed':
+      return 'O início de sessão com Google não está ativado neste projeto Firebase.'
+    case 'auth/network-request-failed':
+      return 'Falhou a ligação à rede. Verifica a internet e tenta outra vez.'
+    default:
+      return 'Não foi possível entrar. Tenta outra vez.'
+  }
+}
+
 export default function Entrar() {
-  const { utilizador, aCarregar, entrarComGoogle } = useAuth()
+  const { utilizador, aCarregar, entrarComGoogle, erro: erroDoRegresso } = useAuth()
   const [aEntrar, setAEntrar] = useState(false)
   const [erro, setErro] = useState(null)
 
@@ -41,13 +56,14 @@ export default function Entrar() {
     try {
       await entrarComGoogle()
     } catch (e) {
-      if (e?.code !== 'auth/popup-closed-by-user') {
-        setErro('Não foi possível entrar. Verifica a ligação e tenta outra vez.')
-      }
+      if (e?.code !== 'auth/popup-closed-by-user') setErro(mensagemDeErro(e))
     } finally {
       setAEntrar(false)
     }
   }
+
+  // Um login por redirecionamento que falhou traz o erro do contexto.
+  const aMostrar = erro || (erroDoRegresso ? mensagemDeErro(erroDoRegresso) : null)
 
   return (
     <div className="entrada">
@@ -63,9 +79,9 @@ export default function Entrar() {
           {aEntrar ? 'A entrar…' : 'Entrar com o Google'}
         </button>
 
-        {erro && (
+        {aMostrar && (
           <div className="alerta alerta--erro" style={{ marginTop: 18 }}>
-            {erro}
+            {aMostrar}
           </div>
         )}
 

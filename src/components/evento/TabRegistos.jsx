@@ -8,9 +8,68 @@ import { valorRegisto } from '../../lib/calculos'
 import { corPorId } from '../../lib/cores'
 import { comUnidade, dataCurta, primeiroNome } from '../../lib/formato'
 import { apagarRegisto } from '../../lib/servicos'
+import { useTelemovel } from '../../hooks/useEcra'
+
+// Um cartão por pesagem, em vez de uma linha de tabela que não cabe no ecrã.
+function CartaoPesagem({ registo, participante, cats, meu, isAdmin, aoEditar, aoApagar, aoVerTalao }) {
+  return (
+    <div className="cartao-pesagem">
+      <div className="cartao-pesagem__topo">
+        <Avatar
+          nome={participante?.nome}
+          fotoURL={participante?.fotoURL}
+          cor={corPorId(participante?.cor)}
+        />
+        <div className="cartao-pesagem__quem">
+          {primeiroNome(participante?.nome || 'Saiu do evento')}
+          <div className="cartao-pesagem__data">{dataCurta(registo.data)}</div>
+        </div>
+        {registo.origem === 'talao-ia' && <span className="selo-ia">IA</span>}
+      </div>
+
+      <div className="cartao-pesagem__valores">
+        {cats.map((c) => {
+          const valor = valorRegisto(registo, c.id, participante)
+          if (valor === null) return null
+          return (
+            <div className="cartao-pesagem__valor" key={c.id}>
+              <div className="cartao-pesagem__rotulo">{c.curto}</div>
+              <div className="cartao-pesagem__numero">{comUnidade(valor, c)}</div>
+            </div>
+          )
+        })}
+      </div>
+
+      {registo.notas && <div className="cartao-pesagem__nota">{registo.notas}</div>}
+
+      {(registo.ficheiroURL || meu || isAdmin) && (
+        <div className="cartao-pesagem__fundo">
+          {registo.ficheiroURL && (
+            <button className="btn btn--p" onClick={() => aoVerTalao(registo.ficheiroURL)}>
+              Ver talão
+            </button>
+          )}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 7 }}>
+            {meu && (
+              <button className="btn btn--p" onClick={() => aoEditar(registo)}>
+                Editar
+              </button>
+            )}
+            {(meu || isAdmin) && (
+              <button className="btn btn--p btn--perigo" onClick={() => aoApagar(registo)}>
+                Apagar
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function TabRegistos({ evento, participantes, registos, euParticipante, souParticipante }) {
   const { uid, isAdmin } = useAuth()
+  const telemovel = useTelemovel()
   const toast = useToast()
 
   const [filtroUid, setFiltroUid] = useState('todos')
@@ -49,7 +108,7 @@ export default function TabRegistos({ evento, participantes, registos, euPartici
 
   return (
     <>
-      <div className="secao__topo">
+      <div className="secao__topo so-computador">
         <div className="linha" style={{ flexWrap: 'nowrap', gap: 12 }}>
           <IconeMarca nome="imc" />
           <div>
@@ -87,6 +146,22 @@ export default function TabRegistos({ evento, participantes, registos, euPartici
             ? 'Fotografa o talão da farmácia ou escreve os valores à mão.'
             : 'Quando os participantes começarem a registar, aparece tudo aqui.'}
         </Vazio>
+      ) : telemovel ? (
+        <div className="lista-cartoes">
+          {lista.map((r) => (
+            <CartaoPesagem
+              key={r.id}
+              registo={r}
+              participante={participanteDe(r.uid)}
+              cats={cats}
+              meu={r.uid === uid}
+              isAdmin={isAdmin}
+              aoEditar={abrirEdicao}
+              aoApagar={setParaApagar}
+              aoVerTalao={setLupa}
+            />
+          ))}
+        </div>
       ) : (
         <div className="cartao cartao--limpo">
           <div className="tabela-envolvente">
@@ -163,7 +238,7 @@ export default function TabRegistos({ evento, participantes, registos, euPartici
         </div>
       )}
 
-      {lista.some((r) => r.notas) && (
+      {!telemovel && lista.some((r) => r.notas) && (
         <div className="cartao" style={{ marginTop: 16 }}>
           <h3 style={{ marginBottom: 10 }}>Notas</h3>
           {lista

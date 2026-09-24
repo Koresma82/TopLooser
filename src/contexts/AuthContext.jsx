@@ -33,6 +33,21 @@ async function guardarPerfil(utilizador) {
   await setDoc(ref, dados, { merge: true })
 }
 
+// No iPhone e numa app instalada no ecrã inicial, a janela de popup é quase
+// sempre bloqueada. Nesses casos vai-se logo por redirecionamento, em vez de
+// tentar o popup, falhar e só depois mudar de ideias.
+function preferirRedirecionamento() {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  const iOS =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const instalada =
+    window.matchMedia?.('(display-mode: standalone)')?.matches ||
+    window.navigator.standalone === true
+  return iOS || instalada
+}
+
 export function AuthProvider({ children }) {
   const [utilizador, setUtilizador] = useState(null)
   const [aCarregar, setACarregar] = useState(true)
@@ -44,8 +59,13 @@ export function AuthProvider({ children }) {
       return undefined
     }
 
-    // Resultado de um login por redirecionamento (browsers que bloqueiam popups).
-    getRedirectResult(auth).catch(() => {})
+    // Resultado de um login por redirecionamento. Se falhou, mostra-se o erro:
+    // engolir isto em silêncio deixava a pessoa a olhar para o ecrã de entrada
+    // sem perceber porque e que nao entrou.
+    getRedirectResult(auth).catch((e) => {
+      console.error('Falhou o regresso do login:', e)
+      setErro(e)
+    })
 
     const cancelar = onAuthStateChanged(
       auth,
@@ -70,6 +90,12 @@ export function AuthProvider({ children }) {
 
   async function entrarComGoogle() {
     setErro(null)
+
+    if (preferirRedirecionamento()) {
+      await signInWithRedirect(auth, googleProvider)
+      return
+    }
+
     try {
       await signInWithPopup(auth, googleProvider)
     } catch (e) {

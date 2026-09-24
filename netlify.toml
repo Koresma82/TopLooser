@@ -6,6 +6,19 @@
 [build.environment]
   NODE_VERSION = "20"
 
+  # O Netlify verifica se algum valor das variaveis de ambiente aparece no
+  # resultado do build e, se aparecer, FALHA o deploy. As variaveis VITE_* sao
+  # embutidas no JavaScript de proposito -- e assim que a app sabe a que projeto
+  # Firebase se liga -- por isso apareceriam sempre e o build nunca passava.
+  #
+  # A configuracao do Firebase para web e publica por natureza: quem protege os
+  # dados sao as regras do Firestore e do Storage, nao o segredo destas chaves.
+  #
+  # A ANTHROPIC_API_KEY NAO esta nesta lista, de proposito: essa e mesmo secreta,
+  # so corre do lado do servidor e nunca deve aparecer no build. Se um dia
+  # aparecer, queremos mesmo que o deploy falhe.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_FB_API_KEY,VITE_FB_AUTH_DOMAIN,VITE_FB_PROJECT_ID,VITE_FB_STORAGE_BUCKET,VITE_FB_MESSAGING_SENDER_ID,VITE_FB_APP_ID,VITE_ADMIN_EMAIL"
+
 [functions]
   node_bundler = "esbuild"
 
@@ -39,6 +52,31 @@
 # Pre-visualizacoes de pull requests usam o ambiente de desenvolvimento.
 [context.deploy-preview]
   command = "npm run build:dev"
+
+# ---------------------------------------------------------------------------
+# Autenticacao: servir o fluxo do Google pelo NOSSO dominio
+#
+# O Safari (e ja o Firefox e o Chrome) bloqueia o armazenamento de terceiros.
+# Como o Firebase faz o login em <projeto>.firebaseapp.com, que e um dominio
+# terceiro em relacao ao site, o iPhone perdia o estado a meio e dava:
+#
+#   "Unable to process request due to missing initial state."
+#
+# Isto reencaminha /__/auth/* para o dominio do Firebase de forma TRANSPARENTE
+# (status 200, nao 302 -- um 302 nao resolve o problema). Assim, para o browser,
+# o login acontece todo no mesmo dominio e nao ha armazenamento de terceiros.
+#
+# Tem de vir ANTES da regra /* das paginas, senao e esta a apanhar o pedido.
+#
+# Falta a outra metade, que nao se faz aqui: a VITE_FB_AUTH_DOMAIN passa a ser
+# o dominio do site (toplooser.netlify.app) em vez de toplooser-prod.firebase
+# app.com. Os passos todos estao no GUIA.md, na parte 6.
+# ---------------------------------------------------------------------------
+[[redirects]]
+  from = "/__/auth/*"
+  to = "https://toplooser-prod.firebaseapp.com/__/auth/:splat"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/*"
